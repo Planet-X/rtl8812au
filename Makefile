@@ -10,6 +10,7 @@ EXTRA_CFLAGS += -Wextra
 EXTRA_CFLAGS += -Wno-tautological-compare
 EXTRA_CFLAGS += -Wno-incompatible-pointer-types
 EXTRA_CFLAGS += -Wno-switch
+EXTRA_CFLAGS += -Wmissing-field-initializers
 EXTRA_CFLAGS += -Wno-cast-function-type
 EXTRA_CFLAGS += -Wno-unused-variable
 EXTRA_CFLAGS += -Wno-unused-value
@@ -43,8 +44,12 @@ CONFIG_RTL8821A = y
 CONFIG_RTL8814A = y
 ######################### Interface ###########################
 CONFIG_USB_HCI = y
+#########################    LED    ###########################
+CONFIG_LED_CONTROL = y
+CONFIG_LED_ENABLE = y
 ########################## Features ###########################
 CONFIG_NET_NS = n
+CONFIG_IPV6_DISABLE = n
 CONFIG_MP_INCLUDED = y
 CONFIG_CONCURRENT_MODE = n
 CONFIG_POWER_SAVING = n
@@ -83,6 +88,7 @@ CONFIG_RTW_IPCAM_APPLICATION = n
 CONFIG_RTW_REPEATER_SON = n
 CONFIG_RTW_WIFI_HAL = y
 ########################## Debug ###########################
+CONFIG_DISABLE_PHYDM_DEBUG_FUNCTION = y
 CONFIG_RTW_DEBUG = n
 # default log level is _DRV_INFO_ = 4,
 # please refer to "How_to_set_driver_debug_log_level.doc" to set the available level.
@@ -113,6 +119,7 @@ CONFIG_PLATFORM_ARM_S3C6K4 = n
 CONFIG_PLATFORM_MIPS_RMI = n
 CONFIG_PLATFORM_RTD2880B = n
 CONFIG_PLATFORM_MIPS_AR9132 = n
+CONFIG_PLATFORM_OPENWRT_NEO2 = n
 CONFIG_PLATFORM_RTK_DMP = n
 CONFIG_PLATFORM_MIPS_PLM = n
 CONFIG_PLATFORM_MSTAR389 = n
@@ -168,7 +175,11 @@ CONFIG_PLATFORM_ZTE_ZX296716 = n
 
 CONFIG_DRVEXT_MODULE = n
 
+ifeq ($(CONFIG_RTL8812AU), )
 export TopDIR ?= $(shell pwd)
+else
+export TopDIR ?= $(shell pwd)/drivers/net/wireless/rtl8812au
+endif
 
 ########### COMMON  #################################
 ifeq ($(CONFIG_DISABLE_REGD_C), y)
@@ -676,11 +687,15 @@ EXTRA_CFLAGS += -DCONFIG_RTW_DEBUG
 EXTRA_CFLAGS += -DRTW_LOG_LEVEL=$(CONFIG_RTW_LOG_LEVEL)
 endif
 
+ifeq ($(CONFIG_DISABLE_PHYDM_DEBUG_FUNCTION), y)
+EXTRA_CFLAGS += -DCONFIG_DISABLE_PHYDM_DEBUG_FUNCTION
+endif
+
 EXTRA_CFLAGS += -DDM_ODM_SUPPORT_TYPE=0x04
 
 ifeq ($(CONFIG_PLATFORM_I386_PC), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
-EXTRA_CFLAGS += -DCONFIG_IOCTL_CFG80211 -DRTW_USE_CFG80211_STA_EVENT
+EXTRA_CFLAGS += -DRTW_USE_CFG80211_STA_EVENT
 SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ | sed -e s/ppc64le/powerpc/)
 ARCH ?= $(SUBARCH)
 CROSS_COMPILE ?=
@@ -700,6 +715,11 @@ EXTRA_CFLAGS += -DCONFIG_CONCURRENT_MODE
 EXTRA_CFLAGS += -DCONFIG_P2P_IPS -DCONFIG_PLATFORM_ANDROID
 # Enable this for Android 5.0
 EXTRA_CFLAGS += -DCONFIG_RADIO_WORK
+# default setting for Android 7.0
+RTK_ANDROID_VERSION := nougat
+ifeq ($(RTK_ANDROID_VERSION), nougat)
+EXTRA_CFLAGS += -DRTW_P2P_GROUP_INTERFACE=1
+endif
 EXTRA_CFLAGS += -DRTW_VENDOR_EXT_SUPPORT
 EXTRA_CFLAGS += -DRTW_ENABLE_WIFI_CONTROL_FUNC
 ARCH ?= arm
@@ -779,9 +799,14 @@ _PLATFORM_FILES += platform/platform_ARM_SUN50IW1P1_sdio.o
 endif
 
 ARCH := arm64
+ifeq ($(RTK_ANDROID_VERSION), nougat)
+CROSS_COMPILE := /media/SOFT/sdb1/dev/pine64/android-7.1/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-android-
+KSRC :=/media/SOFT/sdb1/dev/pine64/android-7.1/linux/kernel-tulip
+else
 # ===Cross compile setting for Android 5.1(64) SDK ===
 CROSS_COMPILE := /home/android_sdk/Allwinner/a64/android-51/lichee/out/sun50iw1p1/android/common/buildroot/external-toolchain/bin/aarch64-linux-gnu-
 KSRC :=/home/android_sdk/Allwinner/a64/android-51/lichee/linux-3.10/
+endif
 endif
 
 ifeq ($(CONFIG_PLATFORM_TI_AM3517), y)
@@ -919,6 +944,16 @@ CROSS_COMPILE := mips-openwrt-linux-
 KSRC := /home/alex/test_openwrt/tmp/linux-2.6.30.9
 endif
 
+ifeq ($(CONFIG_PLATFORM_OPENWRT_NEO2), y)
+EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
+ARCH := arm64
+CROSS_COMPILE := aarch64-openwrt-linux-
+#export PATH=$PATH:/home/greearb/git/openwrt-neo2-dev/staging_dir/toolchain-aarch64_cortex-a53_gcc-7.3.0_musl/bin/
+#export STAGING_DIR=/home/greearb/git/openwrt-neo2-dev/staging_dir
+KSRC := /home/greearb/git/openwrt-neo2-dev/build_dir/target-aarch64_cortex-a53_musl/linux-sunxi_cortexa53/linux-4.14.78
+endif
+
+# This is how I built for openwrt Neo2 platform. --Ben
 ifeq ($(CONFIG_PLATFORM_OPENWRT_NEO2), y)
 EXTRA_CFLAGS += -DCONFIG_LITTLE_ENDIAN
 ARCH := arm64
@@ -1674,7 +1709,7 @@ export CONFIG_RTL8821AU = m
 all: modules
 
 modules:
-	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KSRC) M=$(shell pwd) O="$(KBUILD_OUTPUT)"  modules
+	$(MAKE) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(KSRC) M=$(shell pwd) O="$(KBUILD_OUTPUT)" modules
 
 strip:
 	$(CROSS_COMPILE)strip $(MODULE_NAME).ko --strip-unneeded
@@ -1733,7 +1768,7 @@ clean:
 	cd hal ; rm -fr */*/*/*.mod.c */*/*/*.mod */*/*/*.o */*/*/.*.cmd */*/*/*.ko
 	cd hal ; rm -fr */*/*.mod.c */*/*.mod */*/*.o */*/.*.cmd */*/*.ko
 	cd hal ; rm -fr */*.mod.c */*.mod */*.o */.*.cmd */*.ko
-	cd hal ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko
+	cd hal/led ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko .*.cmd
 	cd core ; rm -fr */*.mod.c */*.mod */*.o */.*.cmd */*.ko
 	cd core ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko
 	cd os_dep/linux ; rm -fr *.mod.c *.mod *.o .*.cmd *.ko

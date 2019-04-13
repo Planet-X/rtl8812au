@@ -31,8 +31,6 @@
 #include "phydm_precomp.h"
 
 #define READ_AND_CONFIG_MP(ic, txt) (odm_read_and_config_mp_##ic##txt(dm))
-#define READ_AND_CONFIG_TC(ic, txt) (odm_read_and_config_tc_##ic##txt(dm))
-
 
 #define READ_AND_CONFIG     READ_AND_CONFIG_MP
 
@@ -301,13 +299,13 @@ odm_config_bb_with_header_file(
 			/*if (p_dm->rfe_type == 0)
 				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type0);
 			else if (dm->rfe_type == 2)
-				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type2);				
+				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type2);
 			else if (dm->rfe_type == 3)
-				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type3);		
+				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type3);
 			else if (dm->rfe_type == 4)
-				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type4);		
+				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type4);
 			else if (dm->rfe_type == 5)
-				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type5);		
+				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type5);
 			else if (dm->rfe_type == 7)
 				READ_AND_CONFIG_MP(8814a,_phy_reg_pg_type7);
 			else if (dm->rfe_type == 8)

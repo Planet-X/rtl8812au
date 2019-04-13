@@ -2525,9 +2525,13 @@ void rtw_cfg80211_unlink_bss(_adapter *padapter, struct wlan_network *pnetwork)
 	struct wireless_dev *pwdev = padapter->rtw_wdev;
 	struct wiphy *wiphy = pwdev->wiphy;
 	struct cfg80211_bss *bss = NULL;
-	WLAN_BSSID_EX select_network = pnetwork->network;
+	WLAN_BSSID_EX select_network;
 
-	bss = cfg80211_get_bss(wiphy, NULL/*notify_channel*/,
+	if (!pnetwork)
+		return;
+	select_network = pnetwork->network;
+
+	bss = cfg80211_get_bss(wiphy, NULL /*notify_channel*/,
 		select_network.MacAddress, select_network.Ssid.Ssid,
 		select_network.Ssid.SsidLength,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
@@ -2538,10 +2542,18 @@ void rtw_cfg80211_unlink_bss(_adapter *padapter, struct wlan_network *pnetwork)
 		select_network.InfrastructureMode == Ndis802_11Infrastructure?WLAN_CAPABILITY_ESS:WLAN_CAPABILITY_IBSS);
 #endif
 
+	if (!wiphy) {
+		pr_info("rtl8723bu: rtw_cfg80211_unlink_bss: wiphy is NULL\n");
+		return;
+	}
+
+
 	if (bss) {
 		cfg80211_unlink_bss(wiphy, bss);
 		RTW_INFO("%s(): cfg80211_unlink %s!!\n", __func__, select_network.Ssid.Ssid);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+		if (!padapter->rtw_wdev->wiphy)
+			return;
 		cfg80211_put_bss(padapter->rtw_wdev->wiphy, bss);
 #else
 		cfg80211_put_bss(bss);
@@ -3927,43 +3939,22 @@ int value;
 	value = dbm;
 #endif
 
-if(value < 0)
+if (value < 0) {
 	value = 0;
-if(value > 40)
+}
+if (value > 40) {
 	value = 40;
+}
+	if (type == NL80211_TX_POWER_FIXED) {
+		pHalData->CurrentTxPwrIdx = value;
+		rtw_hal_set_tx_power_level(padapter, pHalData->current_channel);
+	} else {
 
-if(type == NL80211_TX_POWER_FIXED) {
-	pHalData->CurrentTxPwrIdx = value;
-	rtw_hal_set_tx_power_level(padapter, pHalData->current_channel);
-} else
 	return -EOPNOTSUPP;
 
-#if 0
-	struct iwm_priv *iwm = wiphy_to_iwm(wiphy);
-	int ret;
-
-	switch (type) {
-	case NL80211_TX_POWER_AUTOMATIC:
-		return 0;
-	case NL80211_TX_POWER_FIXED:
-		if (mbm < 0 || (mbm % 100))
-			return -EOPNOTSUPP;
-
-		if (!test_bit(IWM_STATUS_READY, &iwm->status))
-			return 0;
-
-		ret = iwm_umac_set_config_fix(iwm, UMAC_PARAM_TBL_CFG_FIX,
-					      CFG_TX_PWR_LIMIT_USR,
-					      MBM_TO_DBM(mbm) * 2);
-		if (ret < 0)
-			return ret;
-
-		return iwm_tx_power_trigger(iwm);
-	default:
-		IWM_ERR(iwm, "Unsupported power type: %d\n", type);
-		return -EOPNOTSUPP;
 	}
-#endif
+		return -EOPNOTSUPP;
+
 	RTW_INFO("%s\n", __func__);
 	return 0;
 }
@@ -4626,7 +4617,11 @@ static int cfg80211_rtw_del_virtual_intf(struct wiphy *wiphy,
 		pwdev_priv = adapter_wdev_data(adapter);
 
 		if (ndev == pwdev_priv->pmon_ndev) {
-			unregister_netdevice(ndev);
+	/* unregister only monitor device
+	 * because only monitor can be added
+	 */
+	if(wdev->iftype == NL80211_IFTYPE_MONITOR)
+		unregister_netdevice(ndev);
 			pwdev_priv->pmon_ndev = NULL;
 			pwdev_priv->ifname_mon[0] = '\0';
 			RTW_INFO(FUNC_NDEV_FMT" remove monitor ndev\n", FUNC_NDEV_ARG(ndev));
@@ -4811,6 +4806,18 @@ static int cfg80211_rtw_start_ap(struct wiphy *wiphy, struct net_device *ndev,
 	ret = rtw_add_beacon(adapter, settings->beacon.head, settings->beacon.head_len,
 		settings->beacon.tail, settings->beacon.tail_len);
 
+        // In cases like WPS, the proberesp and assocresp IEs vary from the beacon, and need to be explicitly set
+        if(ret == 0) {
+                if(settings->beacon.proberesp_ies && settings->beacon.proberesp_ies_len > 0) {
+                        rtw_cfg80211_set_mgnt_wpsp2pie(ndev, (char *)settings->beacon.proberesp_ies,
+                                settings->beacon.proberesp_ies_len, 0x2/*PROBE_RESP*/);
+                }
+                if(settings->beacon.assocresp_ies && settings->beacon.assocresp_ies_len < 0) {
+                        rtw_cfg80211_set_mgnt_wpsp2pie(ndev, (char *)settings->beacon.assocresp_ies,
+                                settings->beacon.assocresp_ies_len, 0x4/*ASSOC_RESP*/);
+                }
+        }
+
 	adapter->mlmeextpriv.mlmext_info.hidden_ssid_mode = settings->hidden_ssid;
 
 	if (settings->ssid && settings->ssid_len) {
@@ -4846,6 +4853,18 @@ static int cfg80211_rtw_change_beacon(struct wiphy *wiphy, struct net_device *nd
 	RTW_INFO(FUNC_NDEV_FMT"\n", FUNC_NDEV_ARG(ndev));
 
 	ret = rtw_add_beacon(adapter, info->head, info->head_len, info->tail, info->tail_len);
+
+        // In cases like WPS, the proberesp and assocresp IEs vary from the beacon, and need to be explicitly set
+        if(ret == 0) {
+                if(info->proberesp_ies && info->proberesp_ies_len > 0) {
+                        rtw_cfg80211_set_mgnt_wpsp2pie(ndev, (char *)info->proberesp_ies,
+                                info->proberesp_ies_len, 0x2/*PROBE_RESP*/);
+                }
+                if(info->assocresp_ies && info->assocresp_ies_len > 0) {
+                        rtw_cfg80211_set_mgnt_wpsp2pie(ndev, (char *)info->assocresp_ies,
+                                info->assocresp_ies_len, 0x4/*ASSOC_RESP*/);
+                }
+        }
 
 	return ret;
 }
@@ -5691,104 +5710,48 @@ static int	cfg80211_rtw_set_channel(struct wiphy *wiphy
 	return 0;
 }
 
-static int cfg80211_rtw_set_monitor_channel(struct wiphy *wiphy
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-	, struct cfg80211_chan_def *chandef
-#else
-	, struct ieee80211_channel *chan
-	, enum nl80211_channel_type channel_type
-#endif
-)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
+/* TODO: 160 MHz bandwidth */
+static int	cfg80211_rtw_set_monitor_channel(struct wiphy *wiphy, struct cfg80211_chan_def *chandef)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-	struct ieee80211_channel *chan = chandef->chan;
-#endif
+	int chan_target = (u8) ieee80211_frequency_to_channel(chandef->chan->center_freq);
+	int chan_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
+	int chan_width = CHANNEL_WIDTH_20;
 
 	_adapter *padapter = wiphy_to_adapter(wiphy);
-	int target_channal = chan->hw_value;
-	int target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-	int target_width = CHANNEL_WIDTH_20;
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
-#ifdef CONFIG_DEBUG_CFG80211
-	RTW_INFO("center_freq %u Mhz ch %u width %u freq1 %u freq2 %u\n"
-		, chan->center_freq
-		, chan->hw_value
-		, chandef->width
-		, chandef->center_freq1
-		, chandef->center_freq2);
-#endif /* CONFIG_DEBUG_CFG80211 */
 
 	switch (chandef->width) {
 	case NL80211_CHAN_WIDTH_20_NOHT:
 	case NL80211_CHAN_WIDTH_20:
-		target_width = CHANNEL_WIDTH_20;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
+		chan_width = CHANNEL_WIDTH_20;
+		chan_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 		break;
 	case NL80211_CHAN_WIDTH_40:
-		target_width = CHANNEL_WIDTH_40;
-		if (chandef->center_freq1 > chan->center_freq)
-			target_offset = HAL_PRIME_CHNL_OFFSET_LOWER;
+		chan_width = CHANNEL_WIDTH_40;
+		if (chandef->center_freq1 > chandef->chan->center_freq)
+			chan_offset = HAL_PRIME_CHNL_OFFSET_LOWER;
 		else
-			target_offset = HAL_PRIME_CHNL_OFFSET_UPPER;
+			chan_offset = HAL_PRIME_CHNL_OFFSET_UPPER;
 		break;
 	case NL80211_CHAN_WIDTH_80:
-		target_width = CHANNEL_WIDTH_80;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-		break;
-	case NL80211_CHAN_WIDTH_80P80:
-		target_width = CHANNEL_WIDTH_80_80;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-		break;
-	case NL80211_CHAN_WIDTH_160:
-		target_width = CHANNEL_WIDTH_160;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-		break;
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0))
-	case NL80211_CHAN_WIDTH_5:
-	case NL80211_CHAN_WIDTH_10:
-#endif
-	default:
-		target_width = CHANNEL_WIDTH_20;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-		break;
-	}
-#else
-#ifdef CONFIG_DEBUG_CFG80211
-	RTW_INFO("center_freq %u Mhz ch %u channel_type %u\n"
-		, chan->center_freq
-		, chan->hw_value
-		, channel_type);
-#endif /* CONFIG_DEBUG_CFG80211 */
-
-	switch (channel_type) {
-	case NL80211_CHAN_NO_HT:
-	case NL80211_CHAN_HT20:
-		target_width = CHANNEL_WIDTH_20;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-		break;
-	case NL80211_CHAN_HT40MINUS:
-		target_width = CHANNEL_WIDTH_40;
-		target_offset = HAL_PRIME_CHNL_OFFSET_UPPER;
-		break;
-	case NL80211_CHAN_HT40PLUS:
-		target_width = CHANNEL_WIDTH_40;
-		target_offset = HAL_PRIME_CHNL_OFFSET_LOWER;
+		chan_width = CHANNEL_WIDTH_80;
+		if (chandef->center_freq1 > chandef->chan->center_freq)
+			chan_offset = HAL_PRIME_CHNL_OFFSET_LOWER;
+		else
+			chan_offset = HAL_PRIME_CHNL_OFFSET_UPPER;
 		break;
 	default:
-		target_width = CHANNEL_WIDTH_20;
-		target_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
+		chan_width = CHANNEL_WIDTH_20;
+		chan_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 		break;
 	}
-#endif
-	RTW_INFO(FUNC_ADPT_FMT" ch:%d bw:%d, offset:%d\n"
-		, FUNC_ADPT_ARG(padapter), target_channal, target_width, target_offset);
 
-	rtw_set_chbw_cmd(padapter, target_channal, target_width, target_offset, RTW_CMDF_WAIT_ACK);
-
+	set_channel_bwmode(padapter, chan_target, chan_offset, chan_width);
+	RTW_INFO("%s : %d %d %d\n", __func__, chan_target, chan_offset, chan_width);
 	return 0;
 }
+#endif
+
 
 static int	cfg80211_rtw_auth(struct wiphy *wiphy, struct net_device *ndev,
 		struct cfg80211_auth_request *req)
@@ -9495,6 +9458,9 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	.set_pmksa = cfg80211_rtw_set_pmksa,
 	.del_pmksa = cfg80211_rtw_del_pmksa,
 	.flush_pmksa = cfg80211_rtw_flush_pmksa,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0))
+	.set_monitor_channel = cfg80211_rtw_set_monitor_channel,
+#endif
 
 #ifdef CONFIG_AP_MODE
 	.add_virtual_intf = cfg80211_rtw_add_virtual_intf,

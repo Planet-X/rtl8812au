@@ -1273,19 +1273,20 @@ unsigned int rtw_classify8021d(struct sk_buff *skb)
 	return dscp >> 5;
 }
 
-
+#if (LINUX_VERSION_CODE>=KERNEL_VERSION(4,19,0))
+static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb,
+				struct net_device *sb_dev,
+				select_queue_fallback_t fallback)
+#else
 static u16 rtw_select_queue(struct net_device *dev, struct sk_buff *skb
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
-  #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
-	  , void *accel_priv
-  #else
-    , struct net_device *sb_dev
-  #endif
-  #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	  , select_queue_fallback_t fallback
-  #endif
+	, void *accel_priv
+	#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	, select_queue_fallback_t fallback
+	#endif
 #endif
 )
+#endif
 {
 	_adapter	*padapter = rtw_netdev_priv(dev);
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
@@ -1484,6 +1485,10 @@ void rtw_hook_if_ops(struct net_device *ndev)
 #ifdef CONFIG_CONCURRENT_MODE
 static void rtw_hook_vir_if_ops(struct net_device *ndev);
 #endif
+static const struct device_type wlan_type = {
+	.name = "wlan",
+};
+
 struct net_device *rtw_init_netdev(_adapter *old_padapter)
 {
 	_adapter *padapter;
@@ -1498,6 +1503,7 @@ struct net_device *rtw_init_netdev(_adapter *old_padapter)
 	if (!pnetdev)
 		return NULL;
 
+	pnetdev->dev.type = &wlan_type;
 	padapter = rtw_netdev_priv(pnetdev);
 	padapter->pnetdev = pnetdev;
 
@@ -1525,7 +1531,7 @@ struct net_device *rtw_init_netdev(_adapter *old_padapter)
 	/* pnetdev->tx_timeout = NULL; */
 	pnetdev->watchdog_timeo = HZ * 3; /* 3 second timeout */
 
-#ifdef CONFIG_WIRELESS_EXT
+#if defined(CONFIG_WIRELESS_EXT) && !defined(CONFIG_CFG80211_WEXT)
 	pnetdev->wireless_handlers = (struct iw_handler_def *)&rtw_handlers_def;
 #endif
 
@@ -1651,18 +1657,19 @@ void rtw_os_ndev_unregister(_adapter *adapter)
 	netdev = adapter->pnetdev;
 
 #if defined(CONFIG_IOCTL_CFG80211)
-	rtw_cfg80211_ndev_res_unregister(adapter);
+       		 rtw_cfg80211_ndev_res_unregister(adapter);
 #endif
 
-	if ((adapter->DriverState != DRIVER_DISAPPEAR) && netdev) {
-		struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
-		u8 rtnl_lock_needed = rtw_rtnl_lock_needed(dvobj);
+        if ((adapter->DriverState != DRIVER_DISAPPEAR) && netdev) {
+                struct dvobj_priv *dvobj = adapter_to_dvobj(adapter);
+                u8 rtnl_lock_needed = rtw_rtnl_lock_needed(dvobj);
 
-		if (rtnl_lock_needed)
-			unregister_netdev(netdev);
-		else
-			unregister_netdevice(netdev);
-	}
+                if (rtnl_lock_needed)
+                        unregister_netdev(netdev);
+                else
+                        unregister_netdevice(netdev);
+        }
+
 
 #if defined(CONFIG_IOCTL_CFG80211) && !defined(RTW_SINGLE_WIPHY)
 #ifdef CONFIG_RFKILL_POLL
@@ -2643,8 +2650,8 @@ static int netdev_vir_if_close(struct net_device *pnetdev)
 #endif
 
 #ifdef CONFIG_IOCTL_CFG80211
-	wdev->iftype = NL80211_IFTYPE_MONITOR;
-	wdev->current_bss = NULL;
+	padapter->rtw_wdev->iftype = NL80211_IFTYPE_MONITOR;
+	padapter->rtw_wdev->current_bss = NULL;
 	rtw_scan_abort(padapter);
 	rtw_cfg80211_wait_scan_req_empty(padapter, 200);
 	adapter_wdev_data(padapter)->bandroid_scan = _FALSE;
