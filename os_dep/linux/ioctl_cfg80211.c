@@ -9508,10 +9508,6 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	#endif
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
-	.set_monitor_channel = cfg80211_rtw_set_monitor_channel,
-#endif
-
 #ifdef CONFIG_P2P
 	.remain_on_channel = cfg80211_rtw_remain_on_channel,
 	.cancel_remain_on_channel = cfg80211_rtw_cancel_remain_on_channel,
