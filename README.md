@@ -4,15 +4,17 @@
 
 ### 
 newest driver 5.3.4 from realtek + patches to add 8814 support.
-Adapted for android, for the Zenfone 3.
+Adapted for android, for the OnePlus 7 Pro.
 
 ### Make
-Building the driver for the Zenfone 3:
+Building the driver for the OnePlus 7 Pro:
 ```
 export ARCH=arm64
-export CROSS_COMPILE="/path/to/toolchain"
+export SUBARCH=arm64
 export KSRC="/path/to/kernel/source"
 export KBUILD_OUTPUT="/path/to/kernel/build/output"
+export CROSS_COMPILE="/path/to/gcc_toolchain"
+export CC_DIR="/path/to/clang/bin"
 make -j$(nproc --all)
 ```
 
