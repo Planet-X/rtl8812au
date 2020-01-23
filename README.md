@@ -1,22 +1,5 @@
 ## RTL8812AU/21AU and RTL8814AU drivers
-Only for use with Linux & Android
-
-[![Monitor mode](https://img.shields.io/badge/monitor%20mode-working-brightgreen.svg)](#)
-[![Frame Injection](https://img.shields.io/badge/frame%20injection-working-brightgreen.svg)](#)
-[![GitHub version](https://raster.shields.io/badge/version-v5.6.4.2-lightgrey.svg)](#)
-[![GitHub issues](https://img.shields.io/github/issues/aircrack-ng/rtl8812au.svg)](https://github.com/aircrack-ng/rtl8812au/issues)
-[![GitHub forks](https://img.shields.io/github/forks/aircrack-ng/rtl8812au.svg)](https://github.com/aircrack-ng/rtl8812au/network)
-[![GitHub stars](https://img.shields.io/github/stars/aircrack-ng/rtl8812au.svg)](https://github.com/aircrack-ng/rtl8812au/stargazers)
-[![Build Status](https://travis-ci.org/aircrack-ng/rtl8812au.svg?branch=v5.6.4.2)](https://travis-ci.org/aircrack-ng/rtl8812au)
-[![GitHub license](https://img.shields.io/github/license/aircrack-ng/rtl8812au.svg)](https://github.com/aircrack-ng/rtl8812au/blob/master/LICENSE)
-<br>
-[![Kali](https://img.shields.io/badge/Kali-supported-blue.svg)](https://www.kali.org)
-[![Arch](https://img.shields.io/badge/Arch-supported-blue.svg)](https://www.archlinux.org)
-[![Armbian](https://img.shields.io/badge/Armbian-supported-blue.svg)](https://www.armbian.com)
-[![ArchLinux](https://img.shields.io/badge/ArchLinux-supported-blue.svg)](https://img.shields.io/badge/ArchLinux-supported-blue.svg)
-[![aircrack-ng](https://img.shields.io/badge/aircrack--ng-supported-blue.svg)](https://github.com/aircrack-ng/aircrack-ng)
-[![wifite2](https://img.shields.io/badge/wifite2-supported-blue.svg)](https://github.com/derv82/wifite2)
-
+Specifically adapted for the sm8150 Android kernel.
 
 ### Important!
 ```
@@ -63,88 +46,56 @@ Only for use with Linux & Android
 [  5]   0.00-23.15  sec  0.00 Bytes  0.00 bits/sec                  receiver
 ```
 
-### DKMS
-This driver can be installed using [DKMS]. This is a system which will automatically recompile and install a kernel module when a new kernel gets installed or updated. To make use of DKMS, install the `dkms` package, which on Debian (based) systems is done like this:
-```
-$ sudo apt-get install dkms
-```
-
-### Installation of Driver
-In order to install the driver open a terminal in the directory with the source code and execute the following command:
-```
-$ sudo ./dkms-install.sh
-```
-
-### Removal of Driver
-In order to remove the driver from your system open a terminal in the directory with the source code and execute the following command:
-```
-$ sudo ./dkms-remove.sh
-```
-
 ### Make
-For building & installing the driver with 'make' use
+Building the driver for the OnePlus 7 Pro, using clang:
 ```
-$ make
-$ make install
+export ARCH=arm64
+export SUBARCH=arm64
+export KSRC="/path/to/kernel/source"
+export KBUILD_OUTPUT="/path/to/kernel/build/output"
+export CROSS_COMPILE="/path/to/gcc_toolchain"
+export CC_DIR="/path/to/clang/bin"
+make -j$(nproc --all)
 ```
+
+### Loading the driver on the phone (root required!)
+Execute the following commands on the phone:
+```
+su
+insmod 8814au.ko
+``` 
+
+### Using the driver as main wifi interface
+Make sure the module has been loaded, but your usb wifi adapter is NOT connected.
+Then follow this closely:
+
+  1. Disable wifi in android
+  2. Remove internal wifi interfaces:
+  ```
+  su
+  iw dev wlan0 del
+  iw dev wlan1 del
+  ``` 
+  3. Connect your USB wifi adapter
+  3. Enable wifi in android. The usb wifi adapter will now be used.
 
 ### Notes
-Download
-```
-$ git clone -b v5.6.4.2 https://github.com/aircrack-ng/rtl8812au.git
-cd rtl*
-```
-Package / Build dependencies (Kali)
-```
-$ sudo apt-get install build-essential
-$ sudo apt-get install bc
-$ sudo apt-get install libelf-dev
-$ sudo apt-get install linux-headers-`uname -r`
-```
-#### For Raspberry (RPI)
+Root is required for every command!
 
-```
-$ sudo apt-get install bc raspberrypi-kernel-headers
-```
-
-Then run this step to change platform in Makefile, For RPI 1/2/3/ & 0/Zero:
-```
-$ sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' Makefile
-$ sed -i 's/CONFIG_PLATFORM_ARM_RPI = n/CONFIG_PLATFORM_ARM_RPI = y/g' Makefile
-```
-
-But for RPI 3B+ & 4B you will need to run those below which builds the ARM64 arch driver:
-```
-$ sed -i 's/CONFIG_PLATFORM_I386_PC = y/CONFIG_PLATFORM_I386_PC = n/g' Makefile
-$ sed -i 's/CONFIG_PLATFORM_ARM64_RPI = n/CONFIG_PLATFORM_ARM64_RPI = y/g' Makefile
-```
-
-In addition, if you receive an error message about `unrecognized command line option ‘-mgeneral-regs-only’` (i.e., Raspbian Buster), you will need to run the following commands:
-```
-$ sed -i 's/^dkms build/ARCH=arm dkms build/' dkms-install.sh
-$ sed -i 's/^MAKE="/MAKE="ARCH=arm\ /' dkms.conf
-```
-
-For setting monitor mode
-  1. Fix problematic interference in monitor mode.
+For setting monitor mode:
+  1. Set interface down
   ```
-  $ airmon-ng check kill
+  ip link set wlan0 down
+  ``` 
+  2. Set monitor mode
   ```
-  You may also uncheck the box "Automatically connect to this network when it is avaiable" in nm-connection-editor. This only works if you have a saved wifi connection.
-
-  2. Set interface down
+  iw dev wlan0 set type monitor
   ```
-  $ sudo ip link set wlan0 down
+  3. Set interface up
   ```
-  3. Set monitor mode
+  ip link set wlan0 up
   ```
-  $ sudo iw dev wlan0 set type monitor
-  ```
-  4. Set interface up
-  ```
-  $ sudo ip link set wlan0 up
-  ```
-For setting TX power
+For setting TX power:
 ```
 $ sudo iw wlan0 set txpower fixed 3000
 ```
@@ -177,19 +128,6 @@ $ cat /proc/net/rtl8812au/$(your interface name)/led_ctrl
 ```sh
 $ rmmod 88XXau
 $ modprobe 88XXau rtw_switch_usb_mode:int (0: no switch 1: switch from usb2 to usb3 2: switch from usb3 to usb2)
-```
-
-### NetworkManager
-
-Newer versions of NetworkManager switches to random MAC address. Some users would prefer to use a fixed address.
-Simply add these lines below
-```
-[device]
-wifi.scan-rand-mac-address=no
-```
-at the end of file /etc/NetworkManager/NetworkManager.conf and restart NetworkManager with the command:
-```
-$ sudo service NetworkManager restart
 ```
 
 ### Credits / Contributors
