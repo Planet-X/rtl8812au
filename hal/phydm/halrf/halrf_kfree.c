@@ -1292,8 +1292,6 @@ void phydm_get_tssi_trim_offset_8822c(void *dm_void)
 		power_trim_info->tssi_trim[6][1] = (s8)pg_power[11];
 		power_trim_info->tssi_trim[7][0] = (s8)pg_power[12];
 		power_trim_info->tssi_trim[7][1] = (s8)pg_power[13];
-		power_trim_info->tssi_trim[8][0] = (s8)pg_power[14];
-		power_trim_info->tssi_trim[8][1] = (s8)pg_power[15];
 
 		power_trim_info->flag =
 			power_trim_info->flag | TSSI_TRIM_FLAG_ON;
@@ -1658,8 +1656,6 @@ void phydm_get_tssi_trim_offset_8812f(void *dm_void)
 		power_trim_info->tssi_trim[6][1] = (s8)pg_power[11];
 		power_trim_info->tssi_trim[7][0] = (s8)pg_power[12];
 		power_trim_info->tssi_trim[7][1] = (s8)pg_power[13];
-		power_trim_info->tssi_trim[8][0] = (s8)pg_power[14];
-		power_trim_info->tssi_trim[8][1] = (s8)pg_power[15];
 
 		power_trim_info->flag =
 			power_trim_info->flag | TSSI_TRIM_FLAG_ON;
