@@ -973,7 +973,7 @@ response:
 exit:
 	rtw_unlock_suspend();
 	if (command)
-		rtw_mfree(command, priv_cmd.total_len);
+		rtw_mfree(command, priv_cmd.total_len + 1);
 
 	return ret;
 }
@@ -1074,7 +1074,11 @@ int wifi_get_mac_addr(unsigned char *buf)
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)) */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)) || defined(COMPAT_KERNEL_RELEASE)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
+void *wifi_get_country_code(char *ccode, u32 flags)
+#else /* Linux kernel < 3.18 */
 void *wifi_get_country_code(char *ccode)
+#endif /* Linux kernel < 3.18 */
 {
 	RTW_INFO("%s\n", __FUNCTION__);
 	if (!ccode)

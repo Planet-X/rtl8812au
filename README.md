@@ -1,13 +1,18 @@
 ## RTL8812AU/21AU and RTL8814AU drivers
 Specifically adapted for the sm8150 Android kernel.
 
-### Important!
+### What's new?
 ```
-* Use "ip" and "iw" instead of "ifconfig" and "iwconfig"
-     It's described further down, READ THE README!
+* 8814au and 8821au has got a update, about time
+  it's a closer fit to the 8812au and it's code now.
 
-* v5.3.4 is the stable branch, not this, but this does have
-  better range then branches below + more fixes from Realtek
+* AP mode had 30 sec. disconnect issue, that's fixed.
+* Fix some AUTOSUSPEND and EARLY_SUSPEND issues
+* Some cleanup of unused code.
+
+* Some other minors all over ..
+* The 8814au and 8821au is handling/performing netter now
+ 
 ```
 
 ### IPERF3 benchmark
